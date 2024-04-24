@@ -26,27 +26,44 @@ import re
 
 class GiteaStatusPush(http.ReporterBase):
     name = "GiteaStatusPush"
-    ssh_url_match = re.compile(r"(ssh://)?[\w+\-\_]+@[\w\.\-\_]+:?(\d*/)?(?P<owner>[\w_\-\.]+)/(?P<repo_name>[\w_\-\.]+?)(\.git)?$")
+    ssh_url_match = re.compile(
+        r"(ssh://)?[\w+\-\_]+@[\w\.\-\_]+:?(\d*/)?(?P<owner>[\w_\-\.]+)/(?P<repo_name>[\w_\-\.]+?)(\.git)?$"
+    )
 
-    def checkConfig(self, baseURL, token,
-                    context=None, context_pr=None, verbose=False,
-                    debug=None, verify=None,
-                    generators=None,
-                    warningAsSuccess=False, **kwargs):
+    def checkConfig(
+        self,
+        baseURL,
+        token,
+        context=None,
+        context_pr=None,
+        verbose=False,
+        debug=None,
+        verify=None,
+        generators=None,
+        warningAsSuccess=False,
+        **kwargs
+    ):
 
         if generators is None:
             generators = self._create_default_generators()
 
         super().checkConfig(generators=generators, **kwargs)
-        httpclientservice.HTTPClientService.checkAvailable(
-            self.__class__.__name__)
+        httpclientservice.HTTPClientService.checkAvailable(self.__class__.__name__)
 
     @defer.inlineCallbacks
-    def reconfigService(self, baseURL, token,
-                        context=None, context_pr=None, verbose=False,
-                        debug=None, verify=None,
-                        generators=None,
-                        warningAsSuccess=False, **kwargs):
+    def reconfigService(
+        self,
+        baseURL,
+        token,
+        context=None,
+        context_pr=None,
+        verbose=False,
+        debug=None,
+        verify=None,
+        generators=None,
+        warningAsSuccess=False,
+        **kwargs
+    ):
 
         token = yield self.renderSecrets(token)
         self.debug = debug
@@ -57,32 +74,29 @@ class GiteaStatusPush(http.ReporterBase):
 
         yield super().reconfigService(generators=generators, **kwargs)
 
-        self.context = context or Interpolate('buildbot/%(prop:buildername)s')
-        self.context_pr = context_pr or \
-            Interpolate('buildbot/pull_request/%(prop:buildername)s')
-        if baseURL.endswith('/'):
+        self.context = context or Interpolate("buildbot/%(prop:buildername)s")
+        self.context_pr = context_pr or Interpolate("buildbot/pull_request/%(prop:buildername)s")
+        if baseURL.endswith("/"):
             baseURL = baseURL[:-1]
         self.baseURL = baseURL
         self._http = yield httpclientservice.HTTPClientService.getService(
-            self.master, baseURL,
-            headers={'Authorization': 'token {}'.format(token)},
-            debug=self.debug, verify=self.verify)
+            self.master,
+            baseURL,
+            headers={"Authorization": "token {}".format(token)},
+            debug=self.debug,
+            verify=self.verify,
+        )
         self.verbose = verbose
         self.project_ids = {}
         self.warningAsSuccess = warningAsSuccess
 
     def _create_default_generators(self):
-        start_formatter = MessageFormatterRenderable('Build started.')
-        end_formatter = MessageFormatterRenderable('Build done.')
+        start_formatter = MessageFormatterRenderable("Build started.")
+        end_formatter = MessageFormatterRenderable("Build done.")
 
-        return [
-            BuildStartEndStatusGenerator(start_formatter=start_formatter,
-                                         end_formatter=end_formatter)
-        ]
+        return [BuildStartEndStatusGenerator(start_formatter=start_formatter, end_formatter=end_formatter)]
 
-    def createStatus(self,
-                     project_owner, repo_name, sha, state, target_url=None,
-                     description=None, context=None):
+    def createStatus(self, project_owner, repo_name, sha, state, target_url=None, description=None, context=None):
         """
         :param project_owner: username of the owning user or organization
         :param repo_name: name of the repository
@@ -95,24 +109,23 @@ class GiteaStatusPush(http.ReporterBase):
         :return: A deferred with the result from Gitea.
 
         """
-        payload = {'state': state}
+        payload = {"state": state}
 
         if description is not None:
-            payload['description'] = description
+            payload["description"] = description
 
         if target_url is not None:
-            payload['target_url'] = target_url
+            payload["target_url"] = target_url
 
         if context is not None:
-            payload['context'] = context
+            payload["context"] = context
 
         return self._http.post(
-            '/api/v1/repos/{owner}/{repository}/statuses/{sha}'.format(
-                owner=project_owner,
-                repository=repo_name,
-                sha=sha
+            "/api/v1/repos/{owner}/{repository}/statuses/{sha}".format(
+                owner=project_owner, repository=repo_name, sha=sha
             ),
-            json=payload)
+            json=payload,
+        )
 
     @defer.inlineCallbacks
     def send(self, build):
@@ -122,9 +135,9 @@ class GiteaStatusPush(http.ReporterBase):
 
     @defer.inlineCallbacks
     def sendMessage(self, reports):
-        build = reports[0]['builds'][0]
+        build = reports[0]["builds"][0]
         if self.send.__func__ is not GiteaStatusPush.send:
-            warn_deprecated('2.9.0', 'send() in reporters has been deprecated. Use sendMessage()')
+            warn_deprecated("2.9.0", "send() in reporters has been deprecated. Use sendMessage()")
             yield self.send(build)
         else:
             yield self._send_impl(reports)
@@ -132,68 +145,73 @@ class GiteaStatusPush(http.ReporterBase):
     @defer.inlineCallbacks
     def _send_impl(self, reports):
         report = reports[0]
-        build = report['builds'][0]
-        props = Properties.fromDict(build['properties'])
+        build = report["builds"][0]
+        props = Properties.fromDict(build["properties"])
         props.master = self.master
 
-        description = report.get('body', None)
+        description = report.get("body", None)
 
-        if build['complete']:
+        if build["complete"]:
             state = {
-                SUCCESS: 'success',
-                WARNINGS: 'success' if self.warningAsSuccess else 'warning',
-                FAILURE: 'failure',
-                SKIPPED: 'success',
-                EXCEPTION: 'error',
-                RETRY: 'pending',
-                CANCELLED: 'error'
-            }.get(build['results'], 'failure')
+                SUCCESS: "success",
+                WARNINGS: "success" if self.warningAsSuccess else "warning",
+                FAILURE: "failure",
+                SKIPPED: "success",
+                EXCEPTION: "error",
+                RETRY: "pending",
+                CANCELLED: "error",
+            }.get(build["results"], "failure")
         else:
-            state = 'pending'
+            state = "pending"
 
-        if 'pr_id' in props:
+        if "pr_id" in props:
             context = yield props.render(self.context_pr)
         else:
             context = yield props.render(self.context)
 
-        sourcestamps = build['buildset']['sourcestamps']
+        sourcestamps = build["buildset"]["sourcestamps"]
 
         for sourcestamp in sourcestamps:
-            sha = sourcestamp['revision']
+            sha = sourcestamp["revision"]
             repository_owner = None
             if sha is None:
                 # No special revision for this, so ignore it
                 continue
             # If this is a pull request, send the status to the head repository
-            if 'pr_id' in props:
-                repository_name = props['head_reponame']
-                repository_owner = props['head_owner']
-                sha = props['head_sha']
-            elif 'repository_name' in props:
-                repository_name = props['repository_name']
+            log.msg("Getting repo owner")
+            if "pr_id" in props:
+                repository_name = props["head_reponame"]
+                repository_owner = props["head_owner"]
+                log.msg("Got from pr_id: " + repository_name + " and " + repository_owner)
+                sha = props["head_sha"]
+            elif "repository_name" in props:
+                repository_name = props["repository_name"]
+                log.msg("Got from repository_name: " + repository_name)
             else:
-                match = re.match(self.ssh_url_match, sourcestamp['repository'])
+                match = re.match(self.ssh_url_match, sourcestamp["repository"])
+                log.msg("Got from ssh_url_match: " + str(match))
                 if match is not None:
                     repository_name = match.group("repo_name")
                 else:
-                    log.msg(
-                        "Could not send status, "
-                        "build has no repository_name property for Gitea.")
+                    log.msg("Could not send status, " "build has no repository_name property for Gitea.")
                     continue
             if repository_owner is None:
-                if 'owner' in props:
-                    repository_owner = props['owner']
+                log.msg("Getting repo owner from props")
+                if "owner" in props:
+                    repository_owner = props["owner"]
+                    log.msg("Got from owner: " + repository_owner)
                 else:
-                    match = re.match(self.ssh_url_match, sourcestamp['repository'])
+                    match = re.match(self.ssh_url_match, sourcestamp["repository"])
+                    log.msg("Got from ssh_url_match: " + str(match))
                     if match is not None:
                         repository_owner = match.group("owner")
+                        log.msg("Got from ssh_url_match: " + repository_owner)
                     else:
-                        log.msg(
-                            "Could not send status, "
-                            "build has no owner property for Gitea.")
+                        log.msg("Could not send status, " "build has no owner property for Gitea.")
                         continue
             try:
-                target_url = build['url']
+                log.msg("Sending status. Owner: " + repository_owner + " Repo: " + repository_name)
+                target_url = build["url"]
                 res = yield self.createStatus(
                     project_owner=repository_owner,
                     repo_name=repository_name,
@@ -201,29 +219,25 @@ class GiteaStatusPush(http.ReporterBase):
                     state=state,
                     target_url=target_url,
                     context=context,
-                    description=description
+                    description=description,
                 )
                 if res.code not in (200, 201, 204):
                     message = yield res.json()
-                    message = message.get('message', 'unspecified error')
+                    message = message.get("message", "unspecified error")
                     log.msg(
                         'Could not send status "{state}" for '
-                        '{repo} at {sha}: {code} : {message}'.format(
-                            state=state,
-                            repo=sourcestamp['repository'], sha=sha,
-                            code=res.code,
-                            message=message))
+                        "{repo} at {sha}: {code} : {message}".format(
+                            state=state, repo=sourcestamp["repository"], sha=sha, code=res.code, message=message
+                        )
+                    )
                 elif self.verbose:
                     log.msg(
                         'Status "{state}" sent for '
-                        '{repo} at {sha}.'.format(
-                            state=state,
-                            repo=sourcestamp['repository'], sha=sha))
+                        "{repo} at {sha}.".format(state=state, repo=sourcestamp["repository"], sha=sha)
+                    )
             except Exception as e:
                 log.err(
                     e,
                     'Failed to send status "{state}" for '
-                    '{repo} at {sha}'.format(
-                        state=state,
-                        repo=sourcestamp['repository'], sha=sha
-                    ))
+                    "{repo} at {sha}".format(state=state, repo=sourcestamp["repository"], sha=sha),
+                )
